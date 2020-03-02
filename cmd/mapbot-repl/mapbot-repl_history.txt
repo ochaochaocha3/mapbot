@@ -1,0 +1,44 @@
+help
+q
+quit
+a
+114342452
+q
+help
+size
+q
+size
+q
+help
+init 10x11
+size
+init 0x15
+init 14x-11
+init 14x0
+init 20x20
+size
+q
+help
+lsc
+q
+l
+help
+lsc 
+size
+q
+lsc
+help
+addc "ocha" (1, 2)
+addc "ocha" (1,2)
+addc "ocha"
+q
+help
+addc "ocha" (1, 2)
+lsc
+"shiki"
+addc "shiki" (20, 4)
+addc "shiki" (10, 4)
+lsc
+addc "ryu" (3, 7)
+lsc
+q
