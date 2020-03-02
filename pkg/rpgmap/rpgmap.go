@@ -65,8 +65,18 @@ func (m *SquareMap) SizeStr() string {
 	return fmt.Sprintf("%d x %d", m.width, m.height)
 }
 
+// FindChit は名前からチットを検索する。
+func (m *SquareMap) FindChit(name string) (*Chit, bool) {
+	c, ok := m.nameToChit[name]
+	return c, ok
+}
+
 // AddChit はチットを追加する。
 func (m *SquareMap) AddChit(c *Chit) error {
+	if _, found := m.FindChit(c.Name); found {
+		return fmt.Errorf(`chit "%s" already exists`, c.Name)
+	}
+
 	if !m.XIsInRange(c.X) {
 		return fmt.Errorf("X is out of range: %d", c.X)
 	}
@@ -81,15 +91,9 @@ func (m *SquareMap) AddChit(c *Chit) error {
 	return nil
 }
 
-// FindChit は名前からチットを検索する。
-func (m *SquareMap) FindChit(name string) (*Chit, bool) {
-	c, ok := m.nameToChit[name]
-	return c, ok
-}
-
 // MoveChit はチットを移動する。
 func (m *SquareMap) MoveChit(name string, newX int, newY int) error {
-	c, ok := m.nameToChit[name]
+	c, ok := m.FindChit(name)
 	if !ok {
 		return fmt.Errorf("chit not found: %s", name)
 	}

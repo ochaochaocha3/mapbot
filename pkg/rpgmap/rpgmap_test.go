@@ -165,6 +165,28 @@ func TestSquareMap_AddChit(t *testing.T) {
 	}
 }
 
+func TestSquareMap_SameNameChitAdditionIsDenied(t *testing.T) {
+	c1 := Chit{
+		Name: "A",
+		X:    1,
+		Y:    2,
+	}
+
+	c2 := Chit{
+		Name: "A",
+		X:    2,
+		Y:    3,
+	}
+
+	m, _ := NewSquareMap(10, 10)
+	m.AddChit(&c1)
+
+	err := m.AddChit(&c2)
+	if err == nil {
+		t.Fatal("expected err")
+	}
+}
+
 func TestSquareMap_MoveChit(t *testing.T) {
 	testcases := []struct {
 		Width  int
