@@ -33,6 +33,7 @@ const (
 	COMMAND_SIZE       = "size"
 	COMMAND_LIST_CHITS = "lsc"
 	COMMAND_ADD_CHIT   = "addc"
+	COMMAND_MOVE_CHIT  = "mvc"
 	COMMAND_HELP       = "help"
 	COMMAND_QUIT       = "quit"
 )
@@ -109,6 +110,12 @@ func init() {
 			ArgsDescription: `"チット名" (x, y)`,
 			Description:     "チットを追加します",
 			Handler:         addChit,
+		},
+		{
+			Name:            COMMAND_MOVE_CHIT,
+			ArgsDescription: `"チット名" (x, y)`,
+			Description:     "チットを移動します",
+			Handler:         moveChit,
 		},
 		{
 			Name:        COMMAND_HELP,
@@ -301,6 +308,27 @@ func addChit(r *REPL, c *Command, input string) {
 	}
 
 	fmt.Fprintf(r.out, "%s%s\n", RESULT_HEADER, chit.String())
+}
+
+// moveChit はチットを移動する。
+func moveChit(r *REPL, c *Command, input string) {
+	m := addChitRe.FindStringSubmatch(input)
+	if m == nil {
+		r.printCommandUsage(c)
+		return
+	}
+
+	name := m[1]
+	x, _ := strconv.Atoi(m[2])
+	y, _ := strconv.Atoi(m[3])
+
+	err := r.squareMap.MoveChit(name, x-1, y-1)
+	if err != nil {
+		r.printError(err)
+		return
+	}
+
+	r.printOK()
 }
 
 // printHelp は、利用できるコマンドの使用法と説明を出力する。
