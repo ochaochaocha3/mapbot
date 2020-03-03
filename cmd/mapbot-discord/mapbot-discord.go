@@ -10,7 +10,7 @@ import (
 func main() {
 	// 設定ファイルを読み込む
 	configFile := "config.toml"
-	config, err := bot.LoadConfigFrom(configFile)
+	config, err := bot.LoadConfigFile(configFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to load config: %s\n", err)
 		os.Exit(1)
