@@ -3,12 +3,17 @@ package repl
 import (
 	"fmt"
 	"io"
+	"math/rand"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/chzyer/readline"
+	"github.com/llgcode/draw2d/draw2dimg"
 
+	"github.com/ochaochaocha3/mapbot/pkg/colorutil"
+	"github.com/ochaochaocha3/mapbot/pkg/mapgen"
 	"github.com/ochaochaocha3/mapbot/pkg/rpgmap"
 )
 
@@ -30,6 +35,7 @@ const (
 	RESULT_HEADER = ESC_CYAN + "=>" + ESC_RESET + " "
 
 	COMMAND_INIT       = "init"
+	COMMAND_PNG        = "png"
 	COMMAND_SIZE       = "size"
 	COMMAND_LIST_CHITS = "lsc"
 	COMMAND_ADD_CHIT   = "addc"
@@ -99,6 +105,12 @@ func init() {
 			Name:        COMMAND_SIZE,
 			Description: "マップの大きさを出力します",
 			Handler:     printSize,
+		},
+		{
+			Name:            COMMAND_PNG,
+			ArgsDescription: "ファイル名",
+			Description:     "マップをPNGファイルに保存します",
+			Handler:         saveMapAsPng,
 		},
 		{
 			Name:        COMMAND_LIST_CHITS,
@@ -182,6 +194,8 @@ func (r *REPL) Start() {
 		return
 	}
 	defer l.Close()
+
+	rand.Seed(time.Now().UnixNano())
 
 	r.printWelcomeMessage()
 
@@ -269,6 +283,25 @@ func initMap(r *REPL, c *Command, input string) {
 	r.printOK()
 }
 
+// saveMapAsPng はマップの画像をPNGファイルとして保存する。
+func saveMapAsPng(r *REPL, c *Command, input string) {
+	filename := input
+	if filename == "" {
+		filename = "map.png"
+	}
+
+	i := mapgen.NewSquareMapImage(r.squareMap)
+	dest := i.Render()
+
+	err := draw2dimg.SaveToPngFile(filename, dest)
+	if err != nil {
+		r.printError(err)
+		return
+	}
+
+	fmt.Fprintf(r.out, "%s%s\n", RESULT_HEADER, filename)
+}
+
 // printSize はマップの大きさを出力する。
 func printSize(r *REPL, _ *Command, _ string) {
 	fmt.Fprintf(r.out, "%s%s\n", RESULT_HEADER, r.squareMap.SizeStr())
@@ -296,9 +329,10 @@ func addChit(r *REPL, c *Command, input string) {
 	y, _ := strconv.Atoi(m[3])
 
 	chit := rpgmap.Chit{
-		Name: name,
-		X:    x - 1,
-		Y:    y - 1,
+		Name:  name,
+		X:     x - 1,
+		Y:     y - 1,
+		Color: colorutil.RandomChitColor(),
 	}
 
 	err := r.squareMap.AddChit(&chit)
@@ -328,7 +362,8 @@ func moveChit(r *REPL, c *Command, input string) {
 		return
 	}
 
-	r.printOK()
+	chit, _ := r.squareMap.FindChit(name)
+	fmt.Fprintf(r.out, "%s%s\n", RESULT_HEADER, chit.String())
 }
 
 // printHelp は、利用できるコマンドの使用法と説明を出力する。

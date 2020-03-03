@@ -2,14 +2,19 @@ package rpgmap
 
 import (
 	"fmt"
+	"image/color"
 )
 
 // Chit は駒を表す構造体。
 type Chit struct {
 	// Name は駒の名前。
 	Name string
-	X    int
-	Y    int
+	// X は駒のx座標。
+	X int
+	// Y は駒のy座標。
+	Y int
+	// Color は駒の色。
+	Color color.RGBA
 }
 
 // String は駒を表す文字列を返す。
