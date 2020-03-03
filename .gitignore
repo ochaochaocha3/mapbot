@@ -13,3 +13,8 @@
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
+
+# その他
+*_history.txt
+*.png
+*.ttf

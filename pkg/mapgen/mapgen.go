@@ -1,10 +1,15 @@
 package mapgen
 
 import (
+	"fmt"
 	"image"
 	"image/color"
+	"image/draw"
+	"io/ioutil"
 	"math"
 
+	"github.com/golang/freetype/truetype"
+	"github.com/llgcode/draw2d"
 	"github.com/llgcode/draw2d/draw2dimg"
 	"github.com/llgcode/draw2d/draw2dkit"
 
@@ -27,6 +32,9 @@ type SquareMapImage struct {
 	// GridColor はグリッドの線の色。
 	GridColor color.RGBA
 }
+
+// MyFontCache は自前のフォントキャッシュの型。
+type MyFontCache map[string]*truetype.Font
 
 // NewSquareMapImage は新しいスクエアマップ描画情報を返す。
 func NewSquareMapImage(m *rpgmap.SquareMap) *SquareMapImage {
@@ -54,16 +62,30 @@ func (img *SquareMapImage) Height() int {
 }
 
 // Render はマップを描画する。
-func (img *SquareMapImage) Render() *image.RGBA {
-	destRect := image.Rect(0, 0, img.Width(), img.Height())
-	dest := image.NewRGBA(destRect)
-	gc := draw2dimg.NewGraphicContext(dest)
+func (i *SquareMapImage) Render() (*image.RGBA, error) {
+	mapImg := image.NewRGBA(i.rect)
+	mapGC := draw2dimg.NewGraphicContext(mapImg)
 
-	fillBackGround(gc, img)
-	drawGrid(gc, img)
-	drawChits(gc, img)
+	fillBackGround(mapGC, i)
+	drawGrid(mapGC, i)
+	drawChits(mapGC, i)
 
-	return dest
+	legend, legendErr := drawLegend(i)
+	if legendErr != nil {
+		return nil, legendErr
+	}
+
+	legendSP := image.Point{0, mapImg.Bounds().Dy()}
+	legendRect := image.Rectangle{legendSP, legendSP.Add(legend.Bounds().Size())}
+
+	r := image.Rectangle{image.ZP, legendRect.Max}
+
+	dest := image.NewRGBA(r)
+
+	draw.Draw(dest, mapImg.Bounds(), mapImg, image.ZP, draw.Src)
+	draw.Draw(dest, legendRect, legend, image.ZP, draw.Src)
+
+	return dest, nil
 }
 
 // 描画領域の矩形を更新する。
@@ -85,15 +107,16 @@ func fillBackGround(gc *draw2dimg.GraphicContext, i *SquareMapImage) {
 // drawGrid はgcにグリッドを描画する。
 func drawGrid(gc *draw2dimg.GraphicContext, img *SquareMapImage) {
 	gc.SetStrokeColor(img.GridColor)
+	gc.SetLineWidth(1.0)
 
-	for i := 1; i < img.Height(); i++ {
+	for i := 0; i < img.Height(); i++ {
 		y := float64(i * img.GridHeight)
 		gc.MoveTo(0, y)
 		gc.LineTo(float64(img.Width()), y)
 		gc.Stroke()
 	}
 
-	for j := 1; j < img.Width(); j++ {
+	for j := 0; j < img.Width(); j++ {
 		x := float64(j * img.GridWidth)
 		gc.MoveTo(x, 0)
 		gc.LineTo(x, float64(img.Height()))
@@ -142,4 +165,79 @@ func drawChit(gc *draw2dimg.GraphicContext, d chitDrawing) {
 	gc.SetFillColor(d.Chit.Color)
 	draw2dkit.Circle(gc, x, y, r)
 	gc.Fill()
+}
+
+// Store はフォントキャッシュにフォントデータを格納する。
+func (fc MyFontCache) Store(fd draw2d.FontData, font *truetype.Font) {
+	fc[fd.Name] = font
+}
+
+// Load はフォントキャッシュからフォントデータを読み出す。
+func (fc MyFontCache) Load(fd draw2d.FontData) (*truetype.Font, error) {
+	font, stored := fc[fd.Name]
+	if !stored {
+		return nil, fmt.Errorf("font not found: %s", fd.Name)
+	}
+
+	return font, nil
+}
+
+// drawLegend は凡例を描画する。
+func drawLegend(mImg *SquareMapImage) (image.Image, error) {
+	img := image.NewRGBA(image.Rect(0, 0, mImg.Width(), mImg.Map.NumOfChits()*mImg.GridHeight))
+	gc := draw2dimg.NewGraphicContext(img)
+
+	size := math.Min(float64(mImg.GridWidth), float64(mImg.GridHeight)) / 2.0
+	fontSize := 0.8 * size
+
+	fontCache, err := setupFontCache()
+	if err != nil {
+		return nil, err
+	}
+
+	gc.FontCache = fontCache
+	gc.SetFontData(draw2d.FontData{Name: "gothic"})
+	gc.SetFontSize(fontSize)
+
+	// 背景色で塗る
+	gc.SetFillColor(mImg.BackgroundColor)
+	draw2dkit.Rectangle(gc, 0, 0, float64(img.Rect.Dx()), float64(img.Rect.Dy()))
+	gc.Fill()
+
+	// 凡例の各行を描画する
+	x := float64(mImg.GridWidth) / 2.0
+	xLabel := float64(mImg.GridWidth)
+	r := size / 2.0
+	for i, c := range mImg.Map.Chits() {
+		y := float64(i*mImg.GridHeight) + float64(mImg.GridHeight)/2.0
+		gc.SetFillColor(c.Color)
+		draw2dkit.Circle(gc, x, y, r)
+		gc.Fill()
+
+		yLabel := y + fontSize/2
+		gc.SetFillColor(colorutil.CSS3NameToRGBA("black"))
+		gc.FillStringAt(c.Name, xLabel, yLabel)
+	}
+
+	return img, nil
+}
+
+var fontFile = "TakaoPGothic.ttf"
+
+// setupFontCache はフォントキャッシュを用意する。
+func setupFontCache() (MyFontCache, error) {
+	b, err := ioutil.ReadFile(fontFile)
+	if err != nil {
+		return nil, err
+	}
+
+	font, err := truetype.Parse(b)
+	if err != nil {
+		return nil, err
+	}
+
+	fontCache := MyFontCache{}
+	fontCache.Store(draw2d.FontData{Name: "gothic"}, font)
+
+	return fontCache, nil
 }

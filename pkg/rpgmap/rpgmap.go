@@ -65,6 +65,11 @@ func (m *SquareMap) SizeStr() string {
 	return fmt.Sprintf("%d x %d", m.width, m.height)
 }
 
+// NumOfChits はマップに含まれるチット数を返す。
+func (m *SquareMap) NumOfChits() int {
+	return len(m.chits)
+}
+
 // FindChit は名前からチットを検索する。
 func (m *SquareMap) FindChit(name string) (*Chit, bool) {
 	c, ok := m.nameToChit[name]

@@ -291,9 +291,13 @@ func saveMapAsPng(r *REPL, c *Command, input string) {
 	}
 
 	i := mapgen.NewSquareMapImage(r.squareMap)
-	dest := i.Render()
+	dest, err := i.Render()
+	if err != nil {
+		r.printError(err)
+		return
+	}
 
-	err := draw2dimg.SaveToPngFile(filename, dest)
+	err = draw2dimg.SaveToPngFile(filename, dest)
 	if err != nil {
 		r.printError(err)
 		return
