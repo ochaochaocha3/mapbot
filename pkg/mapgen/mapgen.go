@@ -132,7 +132,7 @@ func drawChits(gc *draw2dimg.GraphicContext, img *SquareMapImage) {
 	offset := image.Point{X: 0, Y: 0}
 
 	for _, c := range img.Map.Chits() {
-		drawChit(gc, chitDrawing{
+		drawChit(gc, &chitDrawing{
 			Image:  img,
 			Chit:   c,
 			Size:   chitSize,
@@ -154,7 +154,7 @@ type chitDrawing struct {
 }
 
 // drawChit はgcにチットを描画する。
-func drawChit(gc *draw2dimg.GraphicContext, d chitDrawing) {
+func drawChit(gc *draw2dimg.GraphicContext, d *chitDrawing) {
 	i := d.Image
 	c := d.Chit
 

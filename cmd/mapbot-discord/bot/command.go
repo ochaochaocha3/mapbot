@@ -12,6 +12,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/llgcode/draw2d/draw2dimg"
 
+	"github.com/ochaochaocha3/mapbot/pkg/colorutil"
 	"github.com/ochaochaocha3/mapbot/pkg/mapgen"
 	"github.com/ochaochaocha3/mapbot/pkg/rpgmap"
 )
@@ -89,25 +90,23 @@ func initCommands() {
 			Description: "マップの大きさを返します",
 			Handler:     replyMapSize,
 		},
-		/*
-			{
-				Name:        COMMAND_LIST_CHITS,
-				Description: "チットの一覧を出力します",
-				Handler:     listChits,
-			},
-			{
-				Name:            COMMAND_ADD_CHIT,
-				ArgsDescription: `"チット名" (x, y)`,
-				Description:     "チットを追加します",
-				Handler:         addChit,
-			},
-			{
-				Name:            COMMAND_MOVE_CHIT,
-				ArgsDescription: `"チット名" (x, y)`,
-				Description:     "チットを移動します",
-				Handler:         moveChit,
-			},
-		*/
+		{
+			Name:        COMMAND_LIST_CHITS,
+			Description: "チットの一覧を出力します",
+			Handler:     listChits,
+		},
+		{
+			Name:            COMMAND_ADD_CHIT,
+			ArgsDescription: `"チット名" (x, y)`,
+			Description:     "チットを追加します",
+			Handler:         addChit,
+		},
+		{
+			Name:            COMMAND_MOVE_CHIT,
+			ArgsDescription: `"チット名" (x, y)`,
+			Description:     "チットを移動します",
+			Handler:         moveChit,
+		},
 		{
 			Name:        COMMAND_HELP,
 			Description: "利用できるコマンドの使用法と説明を出力します",
@@ -171,40 +170,16 @@ func initMap(
 		return
 	}
 
-	// マップの画像を作る
-	mImg := mapgen.NewSquareMapImage(newMap)
-	i, err := mImg.Render()
+	err = uploadMap(&UploadMapArgs{
+		Content:   newMap.String(),
+		Map:       newMap,
+		Session:   s,
+		ChannelID: m.ChannelID,
+		Config:    b.Config,
+	})
 	if err != nil {
 		replyErrorMessage(c, err, s, m.ChannelID)
-		return
 	}
-
-	// マップの画像を保存する
-	filename := mapImageFilename(m.ChannelID, b.Config)
-	err = draw2dimg.SaveToPngFile(filename, i)
-	if err != nil {
-		replyErrorMessage(c, err, s, m.ChannelID)
-		return
-	}
-
-	// マップの画像を読み込み、メッセージに添付して送信する
-	f, err := os.Open(filename)
-	if err != nil {
-		replyErrorMessage(c, err, s, m.ChannelID)
-		return
-	}
-	defer f.Close()
-
-	msgData := discordgo.MessageSend{
-		Content: newMap.String(),
-		File: &discordgo.File{
-			Name:        filename,
-			ContentType: "image/png",
-			Reader:      f,
-		},
-	}
-
-	s.ChannelMessageSendComplex(m.ChannelID, &msgData)
 }
 
 // clearMap はマップを削除する。
@@ -252,6 +227,127 @@ func replyMapSize(
 	s.ChannelMessageSend(m.ChannelID, sMap.SizeStr())
 }
 
+// listChits はチットの一覧を出力する。
+func listChits(
+	b *Bot,
+	s *discordgo.Session,
+	m *discordgo.MessageCreate,
+	_ *Command,
+	_ string,
+) {
+	sMap, found := b.channelToMap[m.ChannelID]
+	if !found {
+		s.ChannelMessageSend(m.ChannelID, REPLY_MAP_NOT_FOUND)
+		return
+	}
+
+	if sMap.NumOfChits() < 1 {
+		s.ChannelMessageSend(m.ChannelID, "（チット未登録）")
+		return
+	}
+
+	chits := sMap.Chits()
+	chitStrs := make([]string, 0, len(chits))
+	for _, c := range chits {
+		chitStrs = append(chitStrs, c.String())
+	}
+
+	s.ChannelMessageSend(m.ChannelID, strings.Join(chitStrs, "\n"))
+}
+
+var addChitRe = regexp.MustCompile(`\A"([^"]+)"\s*\((\d+),\s*(\d+)\)\z`)
+
+// addChit はチットを追加する。
+func addChit(
+	b *Bot,
+	s *discordgo.Session,
+	m *discordgo.MessageCreate,
+	c *Command,
+	argStr string,
+) {
+	matches := addChitRe.FindStringSubmatch(argStr)
+	if matches == nil {
+		replyCommandUsage(c, s, m.ChannelID)
+		return
+	}
+
+	sMap, found := b.channelToMap[m.ChannelID]
+	if !found {
+		s.ChannelMessageSend(m.ChannelID, REPLY_MAP_NOT_FOUND)
+		return
+	}
+
+	name := matches[1]
+	x, _ := strconv.Atoi(matches[2])
+	y, _ := strconv.Atoi(matches[3])
+
+	chit := rpgmap.Chit{
+		Name:  name,
+		X:     x - 1,
+		Y:     y - 1,
+		Color: colorutil.RandomChitColor(),
+	}
+
+	err := sMap.AddChit(&chit)
+	if err != nil {
+		replyErrorMessage(c, err, s, m.ChannelID)
+		return
+	}
+
+	err = uploadMap(&UploadMapArgs{
+		Content:   chit.String(),
+		Map:       sMap,
+		Session:   s,
+		ChannelID: m.ChannelID,
+		Config:    b.Config,
+	})
+	if err != nil {
+		replyErrorMessage(c, err, s, m.ChannelID)
+	}
+}
+
+// moveChit はチットを移動する。
+func moveChit(
+	b *Bot,
+	s *discordgo.Session,
+	m *discordgo.MessageCreate,
+	c *Command,
+	argStr string,
+) {
+	matches := addChitRe.FindStringSubmatch(argStr)
+	if matches == nil {
+		replyCommandUsage(c, s, m.ChannelID)
+		return
+	}
+
+	sMap, found := b.channelToMap[m.ChannelID]
+	if !found {
+		s.ChannelMessageSend(m.ChannelID, REPLY_MAP_NOT_FOUND)
+		return
+	}
+
+	name := matches[1]
+	x, _ := strconv.Atoi(matches[2])
+	y, _ := strconv.Atoi(matches[3])
+
+	chit, err := sMap.MoveChit(name, x-1, y-1)
+	if err != nil {
+		replyErrorMessage(c, err, s, m.ChannelID)
+		return
+	}
+
+	err = uploadMap(&UploadMapArgs{
+		Content:   chit.String(),
+		Map:       sMap,
+		Session:   s,
+		ChannelID: m.ChannelID,
+		Config:    b.Config,
+	})
+	if err != nil {
+		replyErrorMessage(c, err, s, m.ChannelID)
+	}
+}
+
 // replyHelp は、利用できるコマンドの使用法と説明を返信する。
 func replyHelp(
 	_ *Bot,
@@ -275,4 +371,55 @@ func replyHelp(
 	}
 
 	s.ChannelMessageSend(m.ChannelID, strings.TrimSpace(buf.String()))
+}
+
+// UploadMapArgs はマップアップロードに必要な情報の構造体。
+type UploadMapArgs struct {
+	// Content は画像とともに送信する文字列。
+	Content string
+	// Map はスクエアマップ。
+	Map *rpgmap.SquareMap
+	// Session はDiscordボットのセッション。
+	Session *discordgo.Session
+	// ChannelID はチャンネルのID。
+	ChannelID string
+	// Config はボットの設定。
+	Config *Config
+}
+
+// uploadMap はマップを描画してアップロードする。
+func uploadMap(args *UploadMapArgs) error {
+	// マップの画像を作る
+	mImg := mapgen.NewSquareMapImage(args.Map)
+	i, err := mImg.Render()
+	if err != nil {
+		return err
+	}
+
+	// マップの画像を保存する
+	filename := mapImageFilename(args.ChannelID, args.Config)
+	err = draw2dimg.SaveToPngFile(filename, i)
+	if err != nil {
+		return err
+	}
+
+	// マップの画像を読み込み、メッセージに添付して送信する
+	f, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	msgData := discordgo.MessageSend{
+		Content: args.Content,
+		File: &discordgo.File{
+			Name:        filename,
+			ContentType: "image/png",
+			Reader:      f,
+		},
+	}
+
+	args.Session.ChannelMessageSendComplex(args.ChannelID, &msgData)
+
+	return nil
 }

@@ -360,13 +360,12 @@ func moveChit(r *REPL, c *Command, input string) {
 	x, _ := strconv.Atoi(m[2])
 	y, _ := strconv.Atoi(m[3])
 
-	err := r.squareMap.MoveChit(name, x-1, y-1)
+	chit, err := r.squareMap.MoveChit(name, x-1, y-1)
 	if err != nil {
 		r.printError(err)
 		return
 	}
 
-	chit, _ := r.squareMap.FindChit(name)
 	fmt.Fprintf(r.out, "%s%s\n", RESULT_HEADER, chit.String())
 }
 

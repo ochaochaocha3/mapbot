@@ -3,12 +3,15 @@ package rpgmap
 
 import (
 	"fmt"
+	"sync"
 )
 
 type stringChitMap map[string]*Chit
 
 // SquareMap はスクエアマップを表す構造体。
 type SquareMap struct {
+	sync.Mutex
+
 	// Width はマップの幅。
 	width int
 	// Height はマップの高さ。
@@ -21,12 +24,12 @@ type SquareMap struct {
 
 // NewSquareMap は新しいスクエアマップを返す。
 func NewSquareMap(width int, height int) (*SquareMap, error) {
-	if width <= 0 {
-		return nil, fmt.Errorf("width must be greater than 0 (%d)", width)
+	if width < 2 {
+		return nil, fmt.Errorf("width must be greater than or equal to 2 (%d)", width)
 	}
 
-	if height <= 0 {
-		return nil, fmt.Errorf("height must be greater than 0 (%d)", height)
+	if height < 2 {
+		return nil, fmt.Errorf("height must be greater than or equal to 2 (%d)", height)
 	}
 
 	return &SquareMap{
@@ -49,6 +52,9 @@ func (m *SquareMap) Height() int {
 
 // Chits はチットの配列のコピーを返す。
 func (m *SquareMap) Chits() []*Chit {
+	m.Lock()
+	defer m.Unlock()
+
 	chits := make([]*Chit, len(m.chits))
 	copy(chits, m.chits)
 
@@ -78,6 +84,9 @@ func (m *SquareMap) FindChit(name string) (*Chit, bool) {
 
 // AddChit はチットを追加する。
 func (m *SquareMap) AddChit(c *Chit) error {
+	m.Lock()
+	defer m.Unlock()
+
 	if _, found := m.FindChit(c.Name); found {
 		return fmt.Errorf(`chit "%s" already exists`, c.Name)
 	}
@@ -97,24 +106,27 @@ func (m *SquareMap) AddChit(c *Chit) error {
 }
 
 // MoveChit はチットを移動する。
-func (m *SquareMap) MoveChit(name string, newX int, newY int) error {
+func (m *SquareMap) MoveChit(name string, newX int, newY int) (*Chit, error) {
+	m.Lock()
+	defer m.Unlock()
+
 	c, ok := m.FindChit(name)
 	if !ok {
-		return fmt.Errorf("chit not found: %s", name)
+		return nil, fmt.Errorf("chit not found: %s", name)
 	}
 
 	if !m.XIsInRange(newX) {
-		return fmt.Errorf("newX is out of range: %d", newX)
+		return nil, fmt.Errorf("newX is out of range: %d", newX)
 	}
 
 	if !m.YIsInRange(newY) {
-		return fmt.Errorf("newY is out of range: %d", newY)
+		return nil, fmt.Errorf("newY is out of range: %d", newY)
 	}
 
 	c.X = newX
 	c.Y = newY
 
-	return nil
+	return c, nil
 }
 
 // XIsInRange は、x座標がマップの範囲内かを返す。
