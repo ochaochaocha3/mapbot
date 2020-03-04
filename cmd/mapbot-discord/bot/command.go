@@ -155,7 +155,7 @@ func initMap(
 	height, _ := strconv.Atoi(matches[2])
 
 	// クリティカルセクション：チャンネル用のマップを作って登録する
-	b.Lock()
+	b.mux.Lock()
 
 	newMap, err := rpgmap.NewSquareMap(width, height)
 	if err == nil {
@@ -163,7 +163,7 @@ func initMap(
 	}
 
 	// クリティカルセクション終了
-	b.Unlock()
+	b.mux.Unlock()
 
 	if err != nil {
 		replyErrorMessage(c, err, s, m.ChannelID)
@@ -191,7 +191,7 @@ func clearMap(
 	_ string,
 ) {
 	// クリティカルセクション：チャンネル用のマップを削除する
-	b.Lock()
+	b.mux.Lock()
 
 	_, found := b.channelToMap[m.ChannelID]
 	if found {
@@ -200,7 +200,7 @@ func clearMap(
 	}
 
 	// クリティカルセクション終了
-	b.Unlock()
+	b.mux.Unlock()
 
 	if !found {
 		s.ChannelMessageSend(m.ChannelID, REPLY_MAP_NOT_FOUND)

@@ -10,8 +10,6 @@ type stringChitMap map[string]*Chit
 
 // SquareMap はスクエアマップを表す構造体。
 type SquareMap struct {
-	sync.Mutex
-
 	// Width はマップの幅。
 	width int
 	// Height はマップの高さ。
@@ -20,6 +18,8 @@ type SquareMap struct {
 	chits []*Chit
 	// nameToChit はチットの名前とチットとの対応。
 	nameToChit map[string]*Chit
+	// mux は排他制御用のミューテックス。
+	mux sync.Mutex
 }
 
 // NewSquareMap は新しいスクエアマップを返す。
@@ -52,8 +52,8 @@ func (m *SquareMap) Height() int {
 
 // Chits はチットの配列のコピーを返す。
 func (m *SquareMap) Chits() []*Chit {
-	m.Lock()
-	defer m.Unlock()
+	m.mux.Lock()
+	defer m.mux.Unlock()
 
 	chits := make([]*Chit, len(m.chits))
 	copy(chits, m.chits)
@@ -84,8 +84,8 @@ func (m *SquareMap) FindChit(name string) (*Chit, bool) {
 
 // AddChit はチットを追加する。
 func (m *SquareMap) AddChit(c *Chit) error {
-	m.Lock()
-	defer m.Unlock()
+	m.mux.Lock()
+	defer m.mux.Unlock()
 
 	if _, found := m.FindChit(c.Name); found {
 		return fmt.Errorf(`chit "%s" already exists`, c.Name)
@@ -107,8 +107,8 @@ func (m *SquareMap) AddChit(c *Chit) error {
 
 // MoveChit はチットを移動する。
 func (m *SquareMap) MoveChit(name string, newX int, newY int) (*Chit, error) {
-	m.Lock()
-	defer m.Unlock()
+	m.mux.Lock()
+	defer m.mux.Unlock()
 
 	c, ok := m.FindChit(name)
 	if !ok {

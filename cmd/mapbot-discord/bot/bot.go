@@ -18,11 +18,12 @@ type ChannelToSquareMap map[string]*rpgmap.SquareMap
 
 // Bot はマップ管理ボットの構造体。
 type Bot struct {
-	sync.Mutex
 	// Config はボットの設定。
 	Config *Config
 	// channelToMap はチャンネル -> マップの対応。
 	channelToMap ChannelToSquareMap
+	// mux は排他制御用のミューテックス。
+	mux sync.Mutex
 }
 
 // NewBot は新しいボットを返す。

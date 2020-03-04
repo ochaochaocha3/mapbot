@@ -274,7 +274,7 @@ func TestSquareMap_MoveChit(t *testing.T) {
 		name := fmt.Sprintf("%s << %s", m.SizeStr(), test.Chit.CoordStr())
 
 		t.Run(name, func(t *testing.T) {
-			err := m.MoveChit("A", test.Chit.X, test.Chit.Y)
+			_, err := m.MoveChit("A", test.Chit.X, test.Chit.Y)
 
 			if err != nil {
 				if test.Err {
