@@ -1,0 +1,8 @@
+# Discordボットのトークン
+token = ""
+
+# 画像ファイルを保存するディレクトリ
+imageDir = "./images"
+
+# 文字の描画に使用するTrueTypeフォントファイルのパス
+fontPath = "/usr/share/fonts/truetype/takao-gothic/TakaoPGothic.ttf"

@@ -139,8 +139,8 @@ func replyErrorMessage(c *Command, err error, s *discordgo.Session, channelID st
 }
 
 // mapImageFilename はマップ画像のファイル名を返す。
-func mapImageFilename(channelID string, c *Config) string {
-	return filepath.Join(c.ImageDir, channelID+".png")
+func mapImageFilename(channelID string, imageDir string) string {
+	return filepath.Join(imageDir, channelID+".png")
 }
 
 var initMapRe = regexp.MustCompile(`\A(\d+)\s*x\s*(\d+)\z`)
@@ -183,7 +183,8 @@ func initMap(
 		Map:       newMap,
 		Session:   s,
 		ChannelID: m.ChannelID,
-		Config:    b.Config,
+		ImageDir:  b.config.ImageDir,
+		FontCache: b.fontCache,
 	})
 	if err != nil {
 		replyErrorMessage(c, err, s, m.ChannelID)
@@ -204,7 +205,7 @@ func clearMap(
 	_, found := b.channelToMap[m.ChannelID]
 	if found {
 		delete(b.channelToMap, m.ChannelID)
-		os.Remove(mapImageFilename(m.ChannelID, b.Config))
+		os.Remove(mapImageFilename(m.ChannelID, b.config.ImageDir))
 	}
 
 	// クリティカルセクション終了
@@ -306,7 +307,8 @@ func addChit(
 		Map:       sMap,
 		Session:   s,
 		ChannelID: m.ChannelID,
-		Config:    b.Config,
+		ImageDir:  b.config.ImageDir,
+		FontCache: b.fontCache,
 	})
 	if err != nil {
 		replyErrorMessage(c, err, s, m.ChannelID)
@@ -348,7 +350,8 @@ func deleteChit(
 		Map:       sMap,
 		Session:   s,
 		ChannelID: m.ChannelID,
-		Config:    b.Config,
+		ImageDir:  b.config.ImageDir,
+		FontCache: b.fontCache,
 	})
 	if err != nil {
 		replyErrorMessage(c, err, s, m.ChannelID)
@@ -390,7 +393,8 @@ func moveChit(
 		Map:       sMap,
 		Session:   s,
 		ChannelID: m.ChannelID,
-		Config:    b.Config,
+		ImageDir:  b.config.ImageDir,
+		FontCache: b.fontCache,
 	})
 	if err != nil {
 		replyErrorMessage(c, err, s, m.ChannelID)
@@ -432,21 +436,23 @@ type UploadMapArgs struct {
 	Session *discordgo.Session
 	// ChannelID はチャンネルのID。
 	ChannelID string
-	// Config はボットの設定。
-	Config *Config
+	// ImageDir は画像を格納するディレクトリ。
+	ImageDir string
+	// FontCache はフォントデータの格納先。
+	FontCache *mapgen.FontCache
 }
 
 // uploadMap はマップを描画してアップロードする。
 func uploadMap(args *UploadMapArgs) error {
 	// マップの画像を作る
-	mImg := mapgen.NewSquareMapImage(args.Map)
+	mImg := mapgen.NewSquareMapImage(args.Map, args.FontCache)
 	i, err := mImg.Render()
 	if err != nil {
 		return err
 	}
 
 	// マップの画像を保存する
-	filename := mapImageFilename(args.ChannelID, args.Config)
+	filename := mapImageFilename(args.ChannelID, args.ImageDir)
 	err = draw2dimg.SaveToPngFile(filename, i)
 	if err != nil {
 		return err

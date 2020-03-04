@@ -9,16 +9,26 @@ import (
 
 	"github.com/chzyer/readline"
 
+	"github.com/ochaochaocha3/mapbot/pkg/mapgen"
 	"github.com/ochaochaocha3/mapbot/pkg/rpgmap"
 )
 
 // REPL はREPLで使用するデータを格納する構造体。
 type REPL struct {
-	in         io.Reader
-	out        io.Writer
+	// in はREPLの入力源。
+	in io.Reader
+	// out はREPLの出力先。
+	out io.Writer
+	// terminated はREPLを終了するかを表す。
 	terminated bool
-	completer  *readline.PrefixCompleter
+	// completer は自動補完機能。
+	completer *readline.PrefixCompleter
 
+	// config はボットの設定。
+	config *Config
+	// fontCache はフォントデータの格納先。
+	fontCache *mapgen.FontCache
+	// squareMap はREPLセッション中に使用するスクエアマップ。
 	squareMap *rpgmap.SquareMap
 }
 
@@ -26,7 +36,7 @@ type REPL struct {
 //
 // REPLは、inから入力された文字列をコマンドとして実行し、
 // outにその結果を出力する。
-func New(in io.Reader, out io.Writer) *REPL {
+func New(in io.Reader, out io.Writer, config *Config) *REPL {
 	completers := make([]readline.PrefixCompleterInterface, 0, len(commands))
 	for _, c := range commands {
 		completers = append(completers, readline.PcItem(c.Name, c.Completers...))
@@ -39,6 +49,7 @@ func New(in io.Reader, out io.Writer) *REPL {
 		out:        out,
 		terminated: false,
 		completer:  readline.NewPrefixCompleter(completers...),
+		config:     config,
 		squareMap:  m,
 	}
 }
@@ -55,7 +66,17 @@ func filterInput(r rune) (rune, bool) {
 }
 
 // Start はREPLを開始する。
-func (r *REPL) Start() {
+func (r *REPL) Start() error {
+	// フォントを読み込む
+	fc := mapgen.NewFontCache()
+	err := fc.StoreFontDataFromFile(r.config.FontPath)
+	if err != nil {
+		return err
+	}
+
+	r.fontCache = fc
+
+	// 自動補完機能を用意する
 	l, err := readline.NewEx(&readline.Config{
 		Prompt:              PROMPT,
 		HistoryFile:         "mapbot-repl_history.txt",
@@ -65,15 +86,17 @@ func (r *REPL) Start() {
 		AutoComplete:        r.completer,
 	})
 	if err != nil {
-		r.printError(err)
-		return
+		return err
 	}
 	defer l.Close()
 
+	// チットの色の生成に乱数を使うため、乱数のシードを設定する
 	rand.Seed(time.Now().UnixNano())
 
+	// 動作開始
 	r.printWelcomeMessage()
 
+	// REPL
 	for !r.terminated {
 		line, readlineErr := l.Readline()
 
@@ -106,9 +129,11 @@ func (r *REPL) Start() {
 			continue
 		}
 
-		commandArgs := tailSpacesRe.ReplaceAllString(matches[2], "")
-		cmd.Handler(r, cmd, commandArgs)
+		args := tailSpacesRe.ReplaceAllString(matches[2], "")
+		cmd.Handler(r, cmd, args)
 	}
+
+	return nil
 }
 
 // init はパッケージを初期化する。

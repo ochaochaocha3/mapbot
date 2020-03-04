@@ -1,14 +1,11 @@
 package mapgen
 
 import (
-	"fmt"
 	"image"
 	"image/color"
 	"image/draw"
-	"io/ioutil"
 	"math"
 
-	"github.com/golang/freetype/truetype"
 	"github.com/llgcode/draw2d"
 	"github.com/llgcode/draw2d/draw2dimg"
 	"github.com/llgcode/draw2d/draw2dkit"
@@ -21,6 +18,8 @@ import (
 type SquareMapImage struct {
 	// Map は描画対象のスクエアマップ。
 	Map *rpgmap.SquareMap
+	// FontCache はフォントの格納先。
+	FontCache *FontCache
 	// GridWidth は1マスの幅。
 	GridWidth int
 	// GridHeight は1マスの高さ。
@@ -33,13 +32,11 @@ type SquareMapImage struct {
 	GridColor color.RGBA
 }
 
-// MyFontCache は自前のフォントキャッシュの型。
-type MyFontCache map[string]*truetype.Font
-
 // NewSquareMapImage は新しいスクエアマップ描画情報を返す。
-func NewSquareMapImage(m *rpgmap.SquareMap) *SquareMapImage {
+func NewSquareMapImage(m *rpgmap.SquareMap, fc *FontCache) *SquareMapImage {
 	i := &SquareMapImage{
 		Map:             m,
+		FontCache:       fc,
 		GridWidth:       32,
 		GridHeight:      32,
 		BackgroundColor: colorutil.CSS3NameToRGBA("white"),
@@ -66,11 +63,11 @@ func (i *SquareMapImage) Render() (*image.RGBA, error) {
 	mapImg := image.NewRGBA(i.rect)
 	mapGC := draw2dimg.NewGraphicContext(mapImg)
 
-	fillBackGround(mapGC, i)
-	drawGrid(mapGC, i)
-	drawChits(mapGC, i)
+	i.fillBackGround(mapGC)
+	i.drawGrid(mapGC)
+	i.drawChits(mapGC)
 
-	legend, legendErr := drawLegend(i)
+	legend, legendErr := i.drawLegend()
 	if legendErr != nil {
 		return nil, legendErr
 	}
@@ -97,7 +94,7 @@ func (i *SquareMapImage) updateRect() {
 }
 
 // fillBackGround はgcを背景色で塗りつぶす。
-func fillBackGround(gc *draw2dimg.GraphicContext, i *SquareMapImage) {
+func (i *SquareMapImage) fillBackGround(gc *draw2dimg.GraphicContext) {
 	// 背景色で塗る
 	gc.SetFillColor(i.BackgroundColor)
 	draw2dkit.Rectangle(gc, 0, 0, float64(i.Width()), float64(i.Height()))
@@ -105,7 +102,7 @@ func fillBackGround(gc *draw2dimg.GraphicContext, i *SquareMapImage) {
 }
 
 // drawGrid はgcにグリッドを描画する。
-func drawGrid(gc *draw2dimg.GraphicContext, img *SquareMapImage) {
+func (img *SquareMapImage) drawGrid(gc *draw2dimg.GraphicContext) {
 	gc.SetStrokeColor(img.GridColor)
 	gc.SetLineWidth(1.0)
 
@@ -127,24 +124,17 @@ func drawGrid(gc *draw2dimg.GraphicContext, img *SquareMapImage) {
 // drawChits はgcにチットの集合を描画する。
 //
 // TODO: 同じ座標の場合にチットの位置をずらす。
-func drawChits(gc *draw2dimg.GraphicContext, img *SquareMapImage) {
-	chitSize := int(math.Min(float64(img.GridWidth), float64(img.GridHeight))) / 2
+func (i *SquareMapImage) drawChits(gc *draw2dimg.GraphicContext) {
+	chitSize := int(math.Min(float64(i.GridWidth), float64(i.GridHeight))) / 2
 	offset := image.Point{X: 0, Y: 0}
 
-	img.Map.ForEachChit(func(_ int, c *rpgmap.Chit) {
-		drawChit(gc, &chitDrawing{
-			Image:  img,
-			Chit:   c,
-			Size:   chitSize,
-			Offset: offset,
-		})
+	i.Map.ForEachChit(func(_ int, c *rpgmap.Chit) {
+		i.drawChit(gc, c, chitSize, offset)
 	})
 }
 
 // chitDrawing はチット描画の情報。
 type chitDrawing struct {
-	// Image はマップ描画情報。
-	Image *SquareMapImage
 	// Chit は描画対象チット。
 	Chit *rpgmap.Chit
 	// Size は描画するチットの大きさ（辺の長さ）。
@@ -154,49 +144,31 @@ type chitDrawing struct {
 }
 
 // drawChit はgcにチットを描画する。
-func drawChit(gc *draw2dimg.GraphicContext, d *chitDrawing) {
-	i := d.Image
-	c := d.Chit
+func (i *SquareMapImage) drawChit(
+	gc *draw2dimg.GraphicContext,
+	chit *rpgmap.Chit,
+	size int,
+	offset image.Point,
+) {
+	x := float64(chit.X*i.GridWidth) + float64(i.GridWidth)/2.0 + float64(offset.X)
+	y := float64(chit.Y*i.GridHeight) + float64(i.GridHeight)/2.0 + float64(offset.Y)
+	r := float64(size) / 2.0
 
-	x := float64(c.X*i.GridWidth) + float64(i.GridWidth)/2.0 + float64(d.Offset.X)
-	y := float64(c.Y*i.GridHeight) + float64(i.GridHeight)/2.0 + float64(d.Offset.Y)
-	r := float64(d.Size) / 2.0
-
-	gc.SetFillColor(d.Chit.Color)
+	gc.SetFillColor(chit.Color)
 	draw2dkit.Circle(gc, x, y, r)
 	gc.Fill()
 }
 
-// Store はフォントキャッシュにフォントデータを格納する。
-func (fc MyFontCache) Store(fd draw2d.FontData, font *truetype.Font) {
-	fc[fd.Name] = font
-}
-
-// Load はフォントキャッシュからフォントデータを読み出す。
-func (fc MyFontCache) Load(fd draw2d.FontData) (*truetype.Font, error) {
-	font, stored := fc[fd.Name]
-	if !stored {
-		return nil, fmt.Errorf("font not found: %s", fd.Name)
-	}
-
-	return font, nil
-}
-
 // drawLegend は凡例を描画する。
-func drawLegend(mImg *SquareMapImage) (image.Image, error) {
+func (mImg *SquareMapImage) drawLegend() (image.Image, error) {
 	img := image.NewRGBA(image.Rect(0, 0, mImg.Width(), mImg.Map.NumOfChits()*mImg.GridHeight))
 	gc := draw2dimg.NewGraphicContext(img)
 
 	size := math.Min(float64(mImg.GridWidth), float64(mImg.GridHeight)) / 2.0
 	fontSize := 0.8 * size
 
-	fontCache, err := setupFontCache()
-	if err != nil {
-		return nil, err
-	}
-
-	gc.FontCache = fontCache
-	gc.SetFontData(draw2d.FontData{Name: "gothic"})
+	gc.FontCache = mImg.FontCache
+	gc.SetFontData(draw2d.FontData{Name: fontNameForMap})
 	gc.SetFontSize(fontSize)
 
 	// 背景色で塗る
@@ -220,27 +192,4 @@ func drawLegend(mImg *SquareMapImage) (image.Image, error) {
 	})
 
 	return img, nil
-}
-
-// fontFile はマップの文字のフォント名。
-//
-// TODO: 設定で変更できるようにする。
-var fontFile = "TakaoPGothic.ttf"
-
-// setupFontCache はフォントキャッシュを用意する。
-func setupFontCache() (MyFontCache, error) {
-	b, err := ioutil.ReadFile(fontFile)
-	if err != nil {
-		return nil, err
-	}
-
-	font, err := truetype.Parse(b)
-	if err != nil {
-		return nil, err
-	}
-
-	fontCache := MyFontCache{}
-	fontCache.Store(draw2d.FontData{Name: "gothic"}, font)
-
-	return fontCache, nil
 }

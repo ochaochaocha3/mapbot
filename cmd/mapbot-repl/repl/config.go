@@ -1,4 +1,4 @@
-package bot
+package repl
 
 import (
 	"fmt"
@@ -6,10 +6,8 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-// Config はボットの設定の構造体。
+// Config はREPLの設定の構造体。
 type Config struct {
-	// Token はボットアカウントのトークン。
-	Token string
 	// ImageDir は画像を格納するディレクトリ。
 	ImageDir string
 	// FontPath はTrueTypeフォントファイルのパス。

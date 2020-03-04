@@ -2,14 +2,17 @@ package bot
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"os/signal"
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 
+	"github.com/ochaochaocha3/mapbot/pkg/mapgen"
 	"github.com/ochaochaocha3/mapbot/pkg/rpgmap"
 )
 
@@ -18,26 +21,37 @@ type ChannelToSquareMap map[string]*rpgmap.SquareMap
 
 // Bot はマップ管理ボットの構造体。
 type Bot struct {
-	// Config はボットの設定。
-	Config *Config
+	// config はボットの設定。
+	config *Config
+	// fontCache はフォントデータの格納先。
+	fontCache *mapgen.FontCache
 	// channelToMap はチャンネル -> マップの対応。
 	channelToMap ChannelToSquareMap
 	// mux は排他制御用のミューテックス。
 	mux sync.Mutex
 }
 
-// NewBot は新しいボットを返す。
-func NewBot(c *Config) *Bot {
+// New は新しいボットを返す。
+func New(c *Config) *Bot {
 	return &Bot{
-		Config:       c,
+		config:       c,
 		channelToMap: ChannelToSquareMap{},
 	}
 }
 
 // Start はボットを起動する。
 func (b *Bot) Start() error {
-	// ボットの準備
-	dg, err := discordgo.New("Bot " + b.Config.Token)
+	// フォントを読み込む
+	fc := mapgen.NewFontCache()
+	err := fc.StoreFontDataFromFile(b.config.FontPath)
+	if err != nil {
+		return err
+	}
+
+	b.fontCache = fc
+
+	// ボットを準備する
+	dg, err := discordgo.New("Bot " + b.config.Token)
 	if err != nil {
 		return err
 	}
@@ -46,11 +60,15 @@ func (b *Bot) Start() error {
 		b.onMessageCreate(s, m)
 	})
 
+	// チットの色の生成に乱数を使うため、乱数のシードを設定する
+	rand.Seed(time.Now().UnixNano())
+
 	// 通信開始
 	err = dg.Open()
 	if err != nil {
 		return err
 	}
+	defer dg.Close()
 
 	fmt.Println("Map Bot is now running. Press Ctrl-C to exit.")
 
@@ -58,8 +76,6 @@ func (b *Bot) Start() error {
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
 	<-sc
-
-	dg.Close()
 
 	return nil
 }
@@ -85,8 +101,8 @@ func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) 
 		return
 	}
 
-	commandArgs := strings.TrimSpace(matches[2])
-	cmd.Handler(b, s, m, cmd, commandArgs)
+	args := strings.TrimSpace(matches[2])
+	cmd.Handler(b, s, m, cmd, args)
 }
 
 // init はパッケージを初期化する。

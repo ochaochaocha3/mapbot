@@ -194,7 +194,7 @@ func saveMapAsPng(r *REPL, c *Command, input string) {
 		filename = "map.png"
 	}
 
-	i := mapgen.NewSquareMapImage(r.squareMap)
+	i := mapgen.NewSquareMapImage(r.squareMap, r.fontCache)
 	dest, err := i.Render()
 	if err != nil {
 		r.printError(err)

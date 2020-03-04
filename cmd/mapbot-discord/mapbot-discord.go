@@ -17,8 +17,7 @@ func main() {
 	}
 
 	// ボットを作り、起動する
-	b := bot.NewBot(config)
-
+	b := bot.New(config)
 	err = b.Start()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Bot error: %s\n", err)
