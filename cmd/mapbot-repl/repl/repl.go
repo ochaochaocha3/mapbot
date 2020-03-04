@@ -34,14 +34,15 @@ const (
 	// 結果の初めに出力する文字列
 	RESULT_HEADER = ESC_CYAN + "=>" + ESC_RESET + " "
 
-	COMMAND_INIT       = "init"
-	COMMAND_PNG        = "png"
-	COMMAND_SIZE       = "size"
-	COMMAND_LIST_CHITS = "lsc"
-	COMMAND_ADD_CHIT   = "addc"
-	COMMAND_MOVE_CHIT  = "mvc"
-	COMMAND_HELP       = "help"
-	COMMAND_QUIT       = "quit"
+	COMMAND_INIT        = "init"
+	COMMAND_PNG         = "png"
+	COMMAND_SIZE        = "size"
+	COMMAND_LIST_CHITS  = "lsc"
+	COMMAND_ADD_CHIT    = "addc"
+	COMMAND_DELETE_CHIT = "delc"
+	COMMAND_MOVE_CHIT   = "mvc"
+	COMMAND_HELP        = "help"
+	COMMAND_QUIT        = "quit"
 )
 
 // コマンドハンドラの型。
@@ -122,6 +123,12 @@ func init() {
 			ArgsDescription: `"チット名" (x, y)`,
 			Description:     "チットを追加します",
 			Handler:         addChit,
+		},
+		{
+			Name:            COMMAND_DELETE_CHIT,
+			ArgsDescription: `"チット名"`,
+			Description:     "チットを削除します",
+			Handler:         deleteChit,
 		},
 		{
 			Name:            COMMAND_MOVE_CHIT,
@@ -313,9 +320,9 @@ func printSize(r *REPL, _ *Command, _ string) {
 
 // listChits はチットの一覧を出力する。
 func listChits(r *REPL, _ *Command, _ string) {
-	for _, c := range r.squareMap.Chits() {
+	r.squareMap.ForEachChit(func(_ int, c *rpgmap.Chit) {
 		fmt.Fprintln(r.out, c)
-	}
+	})
 }
 
 var addChitRe = regexp.MustCompile(`\A"([^"]+)"\s*\((\d+),\s*(\d+)\)\z`)
@@ -346,6 +353,27 @@ func addChit(r *REPL, c *Command, input string) {
 	}
 
 	fmt.Fprintf(r.out, "%s%s\n", RESULT_HEADER, chit.String())
+}
+
+var deleteChitRe = regexp.MustCompile(`\A"([^"]+)"`)
+
+// deleteChit はチットを削除する。
+func deleteChit(r *REPL, c *Command, input string) {
+	m := deleteChitRe.FindStringSubmatch(input)
+	if m == nil {
+		r.printCommandUsage(c)
+		return
+	}
+
+	name := m[1]
+
+	err := r.squareMap.DeleteChit(name)
+	if err != nil {
+		r.printError(err)
+		return
+	}
+
+	r.printOK()
 }
 
 // moveChit はチットを移動する。

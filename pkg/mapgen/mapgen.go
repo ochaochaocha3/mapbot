@@ -131,14 +131,14 @@ func drawChits(gc *draw2dimg.GraphicContext, img *SquareMapImage) {
 	chitSize := int(math.Min(float64(img.GridWidth), float64(img.GridHeight))) / 2
 	offset := image.Point{X: 0, Y: 0}
 
-	for _, c := range img.Map.Chits() {
+	img.Map.ForEachChit(func(_ int, c *rpgmap.Chit) {
 		drawChit(gc, &chitDrawing{
 			Image:  img,
 			Chit:   c,
 			Size:   chitSize,
 			Offset: offset,
 		})
-	}
+	})
 }
 
 // chitDrawing はチット描画の情報。
@@ -208,7 +208,7 @@ func drawLegend(mImg *SquareMapImage) (image.Image, error) {
 	x := float64(mImg.GridWidth) / 2.0
 	xLabel := float64(mImg.GridWidth)
 	r := size / 2.0
-	for i, c := range mImg.Map.Chits() {
+	mImg.Map.ForEachChit(func(i int, c *rpgmap.Chit) {
 		y := float64(i*mImg.GridHeight) + float64(mImg.GridHeight)/2.0
 		gc.SetFillColor(c.Color)
 		draw2dkit.Circle(gc, x, y, r)
@@ -217,11 +217,14 @@ func drawLegend(mImg *SquareMapImage) (image.Image, error) {
 		yLabel := y + fontSize/2
 		gc.SetFillColor(colorutil.CSS3NameToRGBA("black"))
 		gc.FillStringAt(c.Name, xLabel, yLabel)
-	}
+	})
 
 	return img, nil
 }
 
+// fontFile はマップの文字のフォント名。
+//
+// TODO: 設定で変更できるようにする。
 var fontFile = "TakaoPGothic.ttf"
 
 // setupFontCache はフォントキャッシュを用意する。

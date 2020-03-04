@@ -165,7 +165,7 @@ func TestSquareMap_AddChit(t *testing.T) {
 	}
 }
 
-func TestSquareMap_SameNameChitAdditionIsDenied(t *testing.T) {
+func TestSquareMap_AddChit_DeniedWhenSameNamedChitExists(t *testing.T) {
 	c1 := Chit{
 		Name: "A",
 		X:    1,
@@ -184,6 +184,102 @@ func TestSquareMap_SameNameChitAdditionIsDenied(t *testing.T) {
 	err := m.AddChit(&c2)
 	if err == nil {
 		t.Fatal("expected err")
+	}
+}
+
+func TestSquareMap_DeleteChit(t *testing.T) {
+	m, _ := NewSquareMap(10, 10)
+
+	m.AddChit(&Chit{
+		Name: "A",
+		X:    1,
+		Y:    2,
+	})
+	m.AddChit(&Chit{
+		Name: "B",
+		X:    2,
+		Y:    3,
+	})
+	m.AddChit(&Chit{
+		Name: "C",
+		X:    3,
+		Y:    4,
+	})
+
+	m.DeleteChit("B")
+
+	_, found := m.FindChit("B")
+	if found {
+		t.Fatal("chit is not deleted")
+	}
+}
+
+func TestSquareMap_DeleteChit_FailWhenChitNotFound(t *testing.T) {
+	m, _ := NewSquareMap(10, 10)
+
+	m.AddChit(&Chit{
+		Name: "A",
+		X:    1,
+		Y:    2,
+	})
+
+	err := m.DeleteChit("B")
+	if err == nil {
+		t.Fatal("expected err")
+	}
+}
+
+func TestSquareMap_NumOfChits_AfterAddChit(t *testing.T) {
+	m, _ := NewSquareMap(10, 10)
+
+	m.AddChit(&Chit{
+		Name: "A",
+		X:    1,
+		Y:    2,
+	})
+	m.AddChit(&Chit{
+		Name: "B",
+		X:    2,
+		Y:    3,
+	})
+	m.AddChit(&Chit{
+		Name: "C",
+		X:    3,
+		Y:    4,
+	})
+
+	expected := 3
+	actual := m.NumOfChits()
+	if actual != expected {
+		t.Fatalf("got: %d, want: %d", actual, expected)
+	}
+}
+
+func TestSquareMap_NumOfChits_AfterDeleteChit(t *testing.T) {
+	m, _ := NewSquareMap(10, 10)
+
+	m.AddChit(&Chit{
+		Name: "A",
+		X:    1,
+		Y:    2,
+	})
+	m.AddChit(&Chit{
+		Name: "B",
+		X:    2,
+		Y:    3,
+	})
+	m.AddChit(&Chit{
+		Name: "C",
+		X:    3,
+		Y:    4,
+	})
+
+	m.DeleteChit("B")
+
+	expected := 2
+	actual := m.NumOfChits()
+	if actual != expected {
+		t.Fatalf("got: %d, want: %d", actual, expected)
 	}
 }
 
@@ -288,5 +384,20 @@ func TestSquareMap_MoveChit(t *testing.T) {
 				t.Fatal("expected err")
 			}
 		})
+	}
+}
+
+func TestSquareMap_MoveChit_FailWhenChitNotFound(t *testing.T) {
+	m, _ := NewSquareMap(10, 10)
+
+	m.AddChit(&Chit{
+		Name: "A",
+		X:    1,
+		Y:    2,
+	})
+
+	_, err := m.MoveChit("B", 3, 4)
+	if err == nil {
+		t.Fatal("expected err")
 	}
 }

@@ -2,11 +2,13 @@
 package rpgmap
 
 import (
+	"container/list"
 	"fmt"
 	"sync"
 )
 
-type stringChitMap map[string]*Chit
+// stringChitMap は、文字列 -> チットの対応の型。
+type stringListElementMap map[string]*list.Element
 
 // SquareMap はスクエアマップを表す構造体。
 type SquareMap struct {
@@ -16,8 +18,10 @@ type SquareMap struct {
 	height int
 	// Chits はチットの配列。
 	chits []*Chit
-	// nameToChit はチットの名前とチットとの対応。
-	nameToChit map[string]*Chit
+	// chitList はチットの連結リスト。
+	chitList *list.List
+	// nameToChitListElement はチットの名前とチットとの対応。
+	nameToChitListElement stringListElementMap
 	// mux は排他制御用のミューテックス。
 	mux sync.Mutex
 }
@@ -33,10 +37,11 @@ func NewSquareMap(width int, height int) (*SquareMap, error) {
 	}
 
 	return &SquareMap{
-		width:      width,
-		height:     height,
-		chits:      []*Chit{},
-		nameToChit: stringChitMap{},
+		width:                 width,
+		height:                height,
+		chits:                 []*Chit{},
+		chitList:              list.New(),
+		nameToChitListElement: stringListElementMap{},
 	}, nil
 }
 
@@ -48,17 +53,6 @@ func (m *SquareMap) Width() int {
 // Height はマップの高さを返す。
 func (m *SquareMap) Height() int {
 	return m.height
-}
-
-// Chits はチットの配列のコピーを返す。
-func (m *SquareMap) Chits() []*Chit {
-	m.mux.Lock()
-	defer m.mux.Unlock()
-
-	chits := make([]*Chit, len(m.chits))
-	copy(chits, m.chits)
-
-	return chits
 }
 
 // String はマップを表す文字列を返す。
@@ -73,13 +67,26 @@ func (m *SquareMap) SizeStr() string {
 
 // NumOfChits はマップに含まれるチット数を返す。
 func (m *SquareMap) NumOfChits() int {
-	return len(m.chits)
+	return m.chitList.Len()
 }
 
 // FindChit は名前からチットを検索する。
 func (m *SquareMap) FindChit(name string) (*Chit, bool) {
-	c, ok := m.nameToChit[name]
-	return c, ok
+	e, found := m.nameToChitListElement[name]
+	if !found {
+		return nil, false
+	}
+
+	return e.Value.(*Chit), true
+}
+
+// 各チットに対して処理を行う。
+func (m *SquareMap) ForEachChit(f func(i int, c *Chit)) {
+	i := 0
+	for e := m.chitList.Front(); e != nil; e = e.Next() {
+		f(i, e.Value.(*Chit))
+		i++
+	}
 }
 
 // AddChit はチットを追加する。
@@ -99,8 +106,24 @@ func (m *SquareMap) AddChit(c *Chit) error {
 		return fmt.Errorf("Y is out of range: %d", c.Y)
 	}
 
-	m.chits = append(m.chits, c)
-	m.nameToChit[c.Name] = c
+	e := m.chitList.PushBack(c)
+	m.nameToChitListElement[c.Name] = e
+
+	return nil
+}
+
+// DeleteChit はチットを削除する。
+func (m *SquareMap) DeleteChit(name string) error {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+
+	e, found := m.nameToChitListElement[name]
+	if !found {
+		return fmt.Errorf("chit not found: %s", name)
+	}
+
+	m.chitList.Remove(e)
+	delete(m.nameToChitListElement, name)
 
 	return nil
 }

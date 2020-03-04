@@ -18,13 +18,14 @@ import (
 )
 
 const (
-	COMMAND_INIT       = "init!"
-	COMMAND_CLEAR      = "clear!"
-	COMMAND_SIZE       = "size"
-	COMMAND_LIST_CHITS = "lsc"
-	COMMAND_ADD_CHIT   = "addc"
-	COMMAND_MOVE_CHIT  = "mvc"
-	COMMAND_HELP       = "help"
+	COMMAND_INIT        = "init!"
+	COMMAND_CLEAR       = "clear!"
+	COMMAND_SIZE        = "size"
+	COMMAND_LIST_CHITS  = "lsc"
+	COMMAND_ADD_CHIT    = "addc"
+	COMMAND_DELETE_CHIT = "delc"
+	COMMAND_MOVE_CHIT   = "mvc"
+	COMMAND_HELP        = "help"
 
 	// REPLY_MAP_NOT_FOUND はチャンネル用のマップが作成されていないことを表すメッセージ。
 	REPLY_MAP_NOT_FOUND = "マップが作成されていません"
@@ -100,6 +101,12 @@ func initCommands() {
 			ArgsDescription: `"チット名" (x, y)`,
 			Description:     "チットを追加します",
 			Handler:         addChit,
+		},
+		{
+			Name:            COMMAND_DELETE_CHIT,
+			ArgsDescription: `"チット名"`,
+			Description:     "チットを削除します",
+			Handler:         deleteChit,
 		},
 		{
 			Name:            COMMAND_MOVE_CHIT,
@@ -246,11 +253,10 @@ func listChits(
 		return
 	}
 
-	chits := sMap.Chits()
-	chitStrs := make([]string, 0, len(chits))
-	for _, c := range chits {
+	chitStrs := make([]string, 0, sMap.NumOfChits())
+	sMap.ForEachChit(func(_ int, c *rpgmap.Chit) {
 		chitStrs = append(chitStrs, c.String())
-	}
+	})
 
 	s.ChannelMessageSend(m.ChannelID, strings.Join(chitStrs, "\n"))
 }
@@ -296,6 +302,48 @@ func addChit(
 
 	err = uploadMap(&UploadMapArgs{
 		Content:   chit.String(),
+		Map:       sMap,
+		Session:   s,
+		ChannelID: m.ChannelID,
+		Config:    b.Config,
+	})
+	if err != nil {
+		replyErrorMessage(c, err, s, m.ChannelID)
+	}
+}
+
+var deleteChitRe = regexp.MustCompile(`\A"([^"]+)"\z`)
+
+// deleteChit はチットを削除する。
+func deleteChit(
+	b *Bot,
+	s *discordgo.Session,
+	m *discordgo.MessageCreate,
+	c *Command,
+	argStr string,
+) {
+	matches := deleteChitRe.FindStringSubmatch(argStr)
+	if matches == nil {
+		replyCommandUsage(c, s, m.ChannelID)
+		return
+	}
+
+	sMap, found := b.channelToMap[m.ChannelID]
+	if !found {
+		s.ChannelMessageSend(m.ChannelID, REPLY_MAP_NOT_FOUND)
+		return
+	}
+
+	name := matches[1]
+
+	err := sMap.DeleteChit(name)
+	if err != nil {
+		replyErrorMessage(c, err, s, m.ChannelID)
+		return
+	}
+
+	err = uploadMap(&UploadMapArgs{
+		Content:   fmt.Sprintf("チット「%s」を削除しました", name),
 		Map:       sMap,
 		Session:   s,
 		ChannelID: m.ChannelID,
