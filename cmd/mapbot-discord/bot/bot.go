@@ -91,5 +91,5 @@ func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) 
 
 // init はパッケージを初期化する。
 func init() {
-	initCommands()
+	registerCommands()
 }

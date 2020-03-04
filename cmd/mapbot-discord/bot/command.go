@@ -73,7 +73,8 @@ var (
 	tailSpacesRe = regexp.MustCompile(`\s+\z`)
 )
 
-func initCommands() {
+// registerCommands はボットのコマンドを登録する。
+func registerCommands() {
 	commands = []Command{
 		{
 			Name:            COMMAND_INIT,
